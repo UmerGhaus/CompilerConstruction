@@ -22,6 +22,42 @@ struct Token {
     int line;       //Adding line number in Token
 };
 
+// Structure to hold symbol table entries
+struct Symbol {
+    string name;
+    string scope;
+    string type;
+    int line;
+};
+
+class SymbolTable {
+private:
+    map<string, Symbol> table;
+
+public:
+    void addSymbol(const string &name, const string &scope, const string &type, int line) {
+        if (table.find(name) == table.end()) {
+            table[name] = {name, scope, type, line};
+        }
+    }
+
+    void updateType(const string &name, const string &type) {
+        if (table.find(name) != table.end()) {
+            table[name].type = type;
+        }
+    }
+
+    void display() const {
+        cout << "Symbol Table:\n";
+        cout << "Name\tScope\tType\tLine\n";
+        cout << "--------------------------------\n";
+        for (const auto &entry : table) {
+            cout << entry.second.name << "\t" << entry.second.scope << "\t" 
+                 << entry.second.type << "\t" << entry.second.line << "\n";
+        }
+    }
+};
+
 class Lexer {
 private:
     string src;
@@ -239,6 +275,11 @@ private:
         parseExpression();
         expect(T_SEMICOLON);
     }
+    void parseForAssignment() {
+        expect(T_ID);
+        expect(T_ASSIGN);
+        parseExpression();
+    }
 
     void parseIfStatement() {
         expect(T_AGAR);    
@@ -275,25 +316,25 @@ private:
     }
 
     void parseForStatement() {
-        expect(T_FOR);               // Expect the 'for' keyword
-        expect(T_LPAREN);           // Expect the opening parenthesis
+        expect(T_FOR);               
+        expect(T_LPAREN);            
         
-        parseAssignment();           // Parse initialization like `i = 0`
-        expect(T_SEMICOLON);        // Expect semicolon after initialization
+        parseAssignment();           // e.g `i = 0;`
         
-        parseExpression();           // Parse condition like `i < 10`
-        expect(T_SEMICOLON);        // Expect semicolon after condition
+        parseExpression();           // e.g `i < 10`
+        expect(T_SEMICOLON);         
         
-        
-        parseAssignment();           // Parse increment like `i = i + 1`
-        expect(T_RPAREN);           // Expect closing parenthesis
+        parseForAssignment();           // e.g    `i = i + 1`
+        expect(T_RPAREN);            
 
         if (tokens[pos].type == T_LBRACE) {
-            parseBlock();            // If there is a block
+            parseBlock();            
         } else {
-            parseStatement();        // If it's a single statement
+            parseStatement();        
         }
     }
+
+
 
     void parseReturnStatement() {
         expect(T_WAPSI);
