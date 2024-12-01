@@ -1,0 +1,9 @@
+int x;
+x = 10;
+int y;
+y = 20;
+int sum;
+sum = x + y * 3;
+agar(5 > 3){
+    x = 20;
+}

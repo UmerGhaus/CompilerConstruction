@@ -1,141 +1,58 @@
-#include<iostream>
-#include<vector>
-#include<string>
-#include<cctype>
-#include<map>
-#include<fstream>
+#include <iostream>
+#include <vector>
+#include <string>
+#include <cctype>
+#include <map>
+#include <fstream>
 
 using namespace std;
 
 enum TokenType {
-    T_INT, T_ID, T_NUM, T_AGAR, T_WARNA, T_RETURN, // Converting if to AGAR and Else to WARNA
-    T_ASSIGN, T_MUL, T_MINUS, T_DIV, T_PLUS,
-    T_LPAREN, T_RPAREN, T_LBRACE, T_RBRACE,
-    T_SEMICOLON, T_GT, T_EOF, T_FLOAT, T_CHAR, T_DOUBLE,
-    T_FOR, T_WHILE, T_DO, T_STRING, T_BOOL, T_LT, T_NEQ, T_OR, T_AND, T_EQ
-
+    T_FLOAT, T_DOUBLE, T_BOOL, T_CHAR, T_STRING, T_JABTAK, T_FOR,
+    T_INT, T_ID, T_NUM, T_AGAR, T_WARNA, T_WAPSI,
+    T_ASSIGN, T_PLUS, T_MINUS, T_MUL, T_DIV, 
+    T_LPAREN, T_RPAREN, T_LBRACE, T_RBRACE,  
+    T_SEMICOLON,  T_LT, T_LE , T_GT , T_GE , T_EQ, T_NEQ, T_AND, T_OR,
+    T_EOF,
 };
 
 struct Token {
     TokenType type;
     string value;
-    int line; // To store line number
+    int line;       
 };
 
-class Symbol {
-    public:
-        string name; // Stores the name of the symbol
-        TokenType type; // Stores the type of the symbol
-        string scope; // Stores the scope, Global, function etc
-        int line; // Stores at which line number symbol is declared
 
-        Symbol(string name, TokenType type, string scope, int line)
-            : name(name), type(type), scope(scope), line(line) {}
-
-        // Default constructor
-        Symbol() : name(""), type(T_INT), scope(""), line(0) {}
-};
-
-struct TAC {
-    string op; // operations 
-    string arg1; // first operand
-    string arg2; // second operand
-    string result; // result variable or label
-
-};
-
-class SymbolTable {
-    private:
-        vector<map<string, Symbol>> scopes;
-
-    public:
-        SymbolTable(){
-            scopes.push_back(map<string, Symbol>()); // It is global scope and it is empty initially
-        }
-        //Adding new symbol to current scope
-        void addSymbol(const string& name, TokenType type, const string& scope, int line){
-            Symbol symbol(name, type, scope,line);
-            scopes.back()[name] = symbol; //this is insert the name into current scope
-        }
-        //it will lookup symbols from current scopes and outer scopes
-        Symbol* lookup(const string& name) {
-            for (auto it = scopes.rbegin(); it != scopes.rend(); ++it){
-                auto found = it->find(name);
-                if(found != it->end()) {
-                    return &found->second; // it will return the symbol from the first scope found
-                }
-            }
-
-            return nullptr; // if not found then return null pointer
-        }
-        //enter new scope
-        void enterScope(){
-            scopes.push_back(map<string, Symbol>());
-        }
-        //exit current scope
-        void exitScope(){
-            if(scopes.size()>1){
-                scopes.pop_back(); // remove the current scope
-                
-
-            }
-            else {
-                cout <<"Error : Cannot exit global scope!" << endl;
-                exit(1);
-            }
-        }
-
-        // Print the contents of the symbol table
-        // Checking if the symbol table is implemented perfectly or not
-        void printTable() {
-            cout << "Symbol Table:\n";
-            for (size_t i = 0; i < scopes.size(); ++i) {
-                cout << "Scope " << i << ":\n";
-                for (const auto& entry : scopes[i]) {
-                    cout << "  " << entry.first << " (Type: " << entry.second.type 
-                        << ", Scope: " << entry.second.scope 
-                        << ", Line: " << entry.second.line << ")\n";
-                }
-            }
-        }
-        
-};
-
-class Lexer{
-
-    private:
+class Lexer {
+private:
     string src;
     size_t pos;
-    int line; // To track line number
+    int line;
 
-    public:
-    Lexer(const string &src){
+public:
+    Lexer(const string &src) {
         this->src = src;
         this->pos = 0;
-        this->line = 1;
+        this->line = 1;     //Initializing Line Number with 1
     }
 
-    vector<Token> tokenize(){
+    vector<Token> tokenize() {
         vector<Token> tokens;
-        while(pos < src.size()){
+        while (pos < src.size()) {
             char current = src[pos];
 
-            if(isspace(current)) {
-                if(current == '\n'){
-                    line++; // Incrementing Line Number On New Line
-                } 
+            if (isspace(current)) {
+                if (current == '\n') line++;
                 pos++;
                 continue;
             }
-            //single line comments
+            // Skip single-line comments
             if (current == '/' && src[pos + 1] == '/') {
-                while (pos < src.size() && src[pos] != '\n'){
-                    pos++;
-                } 
+                while (pos < src.size() && src[pos] != '\n') pos++;
                 continue;
             }
 
-            //multi line comments
+            // Skip multi-line comments
             if (current == '/' && src[pos + 1] == '*') {
                 pos += 2;
                 while (pos < src.size() && !(src[pos] == '*' && src[pos + 1] == '/')) {
@@ -145,199 +62,261 @@ class Lexer{
                 pos += 2; 
                 continue;
             }
-            if(isdigit(current)){
+            if (isdigit(current)) {
                 tokens.push_back(Token{T_NUM, consumeNumber(), line});
                 continue;
-
             }
-            if(isalpha(current)){
+            if (isalpha(current)) {
                 string word = consumeWord();
                 if (word == "int") tokens.push_back(Token{T_INT, word, line});
-                else if (word == "float") tokens.push_back(Token{T_FLOAT, word, line}); //DataType Added
-                else if (word == "char") tokens.push_back(Token{T_CHAR, word, line});    //DataType Added
-                else if (word == "double") tokens.push_back(Token{T_DOUBLE, word, line});  //DataType Added
-                else if (word == "string") tokens.push_back(Token{T_STRING, word, line});  //DataType Added
-                else if (word == "bool") tokens.push_back(Token{T_BOOL, word, line});   //DataType Added
-                else if(word == "if") tokens.push_back(Token{T_AGAR, word, line});
-                else if(word == "else") tokens.push_back(Token{T_WARNA, word, line});
-                else if(word == "return") tokens.push_back(Token{T_RETURN, word, line});
-                else if (word == "for") tokens.push_back(Token{T_FOR, word, line});     
-                else if (word == "while") tokens.push_back(Token{T_WHILE, word, line}); 
-                else if (word == "do") tokens.push_back(Token{T_DO, word, line});       
+                else if (word == "float") tokens.push_back(Token{T_FLOAT, word, line});
+                else if (word == "double") tokens.push_back(Token{T_DOUBLE, word, line});
+                else if (word == "bool") tokens.push_back(Token{T_BOOL, word, line});
+                else if (word == "char") tokens.push_back(Token{T_CHAR, word, line});
+                else if (word == "string") tokens.push_back(Token{T_STRING, word, line});
+                else if (word == "agar") tokens.push_back(Token{T_AGAR, word, line});
+                else if (word == "warna") tokens.push_back(Token{T_WARNA, word, line});
+                else if (word == "wapsi") tokens.push_back(Token{T_WAPSI, word, line});
+                else if (word == "jabtak") tokens.push_back(Token{T_JABTAK, word, line});
+                else if (word == "for") tokens.push_back(Token{T_FOR, word, line});
                 else tokens.push_back(Token{T_ID, word, line});
                 continue;
             }
 
-            switch (current)
-            {
+            switch (current) {
                 case '=':
                     if (src[pos + 1] == '=') {
                         tokens.push_back(Token{T_EQ, "==", line});
                         pos++;
-                    }else {
+                    } else {
                         tokens.push_back(Token{T_ASSIGN, "=", line});
                     }
                     break;
                 case '&':
-                    if (src[pos + 1] == '&'){
+                    if (src[pos + 1] == '&') {
                         tokens.push_back(Token{T_AND, "&&", line});
                         pos++;
                     }
                     break;
                 case '|':
-                    if(src[pos + 1 ] == '|'){
+                    if (src[pos + 1] == '|') {
                         tokens.push_back(Token{T_OR, "||", line});
                         pos++;
                     }
                     break;
                 case '!':
-                    if(src[pos + 1] == '='){
+                    if (src[pos + 1] == '=') {
                         tokens.push_back(Token{T_NEQ, "!=", line});
                         pos++;
                     }
                     break;
-            
-            case '+' : tokens.push_back(Token{T_PLUS, "+", line});
-                break;
-            case '-' : tokens.push_back(Token{T_MINUS, "-", line});
-                break;
-            case '*' : tokens.push_back(Token{T_MUL, "*", line});
-                break;
-            case '/' : tokens.push_back(Token{T_DIV, "/", line});
-                break;
-            case '(' : tokens.push_back(Token{T_LPAREN, "(", line});
-                break;
-            case ')' : tokens.push_back(Token{T_RPAREN, ")", line});
-                break;
-            case '{' : tokens.push_back(Token{T_LBRACE, "{", line});
-                break;
-            case '}' : tokens.push_back(Token{T_RBRACE, "}", line});
-                break;
-            case ';' : tokens.push_back(Token{T_SEMICOLON, ";", line});
-                break;
-            case '>' : tokens.push_back(Token{T_GT, ">", line});
-                break;
-            case '<' : tokens.push_back(Token{T_LT, "<", line});
-                break;
-            default: cout <<"Unexpected Character: " << current << "at line :"<< line << endl; exit(1);
-                break;
+                case '+': tokens.push_back(Token{T_PLUS, "+", line}); break;
+                case '-': tokens.push_back(Token{T_MINUS, "-", line}); break;
+                case '*': tokens.push_back(Token{T_MUL, "*", line}); break;
+                case '/': tokens.push_back(Token{T_DIV, "/", line}); break;
+                case '(': tokens.push_back(Token{T_LPAREN, "(", line}); break;
+                case ')': tokens.push_back(Token{T_RPAREN, ")", line}); break;
+                case '{': tokens.push_back(Token{T_LBRACE, "{", line}); break;
+                case '}': tokens.push_back(Token{T_RBRACE, "}", line}); break;
+                case ';': tokens.push_back(Token{T_SEMICOLON, ";", line}); break;
+                case '>':
+                    if (src[pos + 1] == '=') {
+                        tokens.push_back(Token{T_GE, ">=", line});
+                        pos++; // Increment position to skip the '='
+                    } else {
+                        tokens.push_back(Token{T_GT, ">", line});
+                    }
+                    break;
+                case '<':
+                    if (src[pos + 1] == '=') {
+                        tokens.push_back(Token{T_LE, "<=", line});
+                        pos++; // Increment position to skip the '='
+                    } else {
+                        tokens.push_back(Token{T_LT, "<", line});
+                    }
+                    break;
+                default: 
+                    cout << "Unexpected character: " << current << " at line " << line << endl; 
+                    exit(1);
             }
             pos++;
         }
         tokens.push_back(Token{T_EOF, "", line});
         return tokens;
-    } 
+    }
 
-
-    string consumeNumber(){
+    string consumeNumber() {
         size_t start = pos;
-        bool isPointValue;
+        bool isPointValue = false;
         int dotCount = 0;
 
-        while(pos < src.size() && (isdigit(src[pos]) || src[pos] == '.')){
-            if(src[pos]=='.') {
+        while (pos < src.size() && (isdigit(src[pos]) || src[pos] == '.')) {
+            if (src[pos] == '.') {
                 dotCount++;
-                if(dotCount > 1){
-                    cout<<"Syntax Error : Invalid Floating Point Number at Line" << line << endl;
+                if (dotCount > 1) {
+                    cout << "Syntax error: Invalid number value at line " << line << endl;
                     exit(1);
                 }
-                isPointValue = true;
+                isPointValue = true; 
             }
             pos++;
-        } 
-        string number =  src.substr(start, pos - start);
-        if(isPointValue){
-            return number; // Return as float datatype if dot is found
         }
-        else {
-            return number;// return as Integer datatype if dot is not found
+
+        string number = src.substr(start, pos - start);
+        if (isPointValue) {
+            return number;  
+        } else {
+            return number; 
         }
     }
 
-    string consumeWord(){
+
+    string consumeWord() {
         size_t start = pos;
-        while(pos < src.size() && isalnum(src[pos])) pos++;
+        while (pos < src.size() && isalnum(src[pos])) pos++;
         return src.substr(start, pos - start);
+    }
+};
+
+class SymbolTable {
+public:
+
+    void declareVariable(const string &name, const string &type) {
+        if (symbolTable.find(name) != symbolTable.end()) {
+            throw runtime_error("Semantic error: Variable '" + name + "' is already declared.");
+        }
+        symbolTable[name] = type;
+    }
+
+    string getVariableType(const string &name) {
+        if (symbolTable.find(name) == symbolTable.end()) {
+            throw runtime_error("Semantic error: Variable '" + name + "' is not declared.");
+        }
+        return symbolTable[name];
+    }
+
+    bool isDeclared(const string &name) const {
+        return symbolTable.find(name) != symbolTable.end();
+    }
+
+private:
+    map<string, string> symbolTable;
+};
+
+class IntermediateCodeGnerator {
+public:
+    vector<string> instructions;
+    int tempCount = 0;
+    int lblCount = 1;
+
+    string newTemp() {
+        return "t" + to_string(tempCount++);
+    }
+    string newLabel(){
+        return "L" + to_string(lblCount++);
+    }
+
+    void addInstruction(const string &instr) {
+        instructions.push_back(instr);
+    }
+
+    void printInstructions() {
+        for (const auto &instr : instructions) {
+            cout << instr << endl;
+        }
     }
 
 };
 
-class Parser{
+class Parser {
+public:
+    Parser(const vector<Token> &tokens, SymbolTable &symTable, IntermediateCodeGnerator &icg)
+        : tokens(tokens), pos(0), symTable(symTable), icg(icg) {}
 
-    public:
-    Parser(const vector<Token> &tokens) : tokens(tokens), pos(0) , tempVarCount(0), labelCount(0){
-        this->tokens = tokens;
-        this->pos = 0;
-    }
-
-    void parseProgram(){
+    void parseProgram() {
         while (tokens[pos].type != T_EOF) {
             parseStatement();
         }
-        cout << "Parsing completed successfully! No syntax error." << endl;
-        printTAC();
+        cout << "Parsing completed successfully! No Syntax Error" << endl;
+    }
+
+private:
+    vector<Token> tokens;
+    size_t pos;
+    SymbolTable &symTable;
+    IntermediateCodeGnerator &icg;
+
+    void parseStatement() {
+        if (tokens[pos].type == T_INT || tokens[pos].type == T_FLOAT || tokens[pos].type == T_DOUBLE || 
+            tokens[pos].type == T_BOOL || tokens[pos].type == T_CHAR || tokens[pos].type == T_STRING) {
+            parseDeclaration();
+        } else if (tokens[pos].type == T_ID) {
+            parseAssignment();
+        } else if (tokens[pos].type == T_AGAR) {
+            parseIfStatement();
+        } else if (tokens[pos].type == T_JABTAK) {
+            parseWhileStatement();
+        } else if (tokens[pos].type == T_FOR) {
+            parseForStatement();
+        } else if (tokens[pos].type == T_WAPSI) {
+            parseReturnStatement();
+        } else if (tokens[pos].type == T_LBRACE) {
+            parseBlock();
+        } else {
+            cout << "Syntax error: unexpected token " << tokens[pos].value 
+                << " at line " << tokens[pos].line << endl;
+            exit(1);
+        }
     }
 
     
-    private:
-    vector<Token> tokens;
-    size_t pos;
-    SymbolTable symbolTable;
-    int tempVarCount;
-    int labelCount;
-    vector<TAC> tacInstructions;
-
-    string generateTempVar(){
-        return "t" + to_string(tempVarCount++);
-    }
-
-    string generateLabel(){
-        return "L" + to_string(labelCount++);
-    }
-
-    void parseStatement(){
-        if (tokens[pos].type == T_INT || tokens[pos].type == T_FLOAT || tokens[pos].type == T_CHAR || tokens[pos].type == T_DOUBLE || tokens[pos].type == T_STRING || 
-        tokens[pos].type == T_BOOL) {
-            parseDeclaration();
+    void parseDeclaration() {
+        TokenType varType = tokens[pos].type; 
+        expect(varType);
+        string varName = expectAndReturnValue(T_ID);
+        string typeString;
+        switch (varType) {
+            case T_INT:
+                typeString = "int";
+                break;
+            case T_FLOAT:
+                typeString = "float";
+                break;
+            case T_DOUBLE:
+                typeString = "double";
+                break;
+            case T_BOOL:
+                typeString = "bool";
+                break;
+            case T_CHAR:
+                typeString = "char";
+                break;
+            case T_STRING:
+                typeString = "string";
+                break;
+            default:
+                throw std::runtime_error("Unsupported type in declaration");
         }
-        else if(tokens[pos].type == T_ID) {
-            parseAssignment();
-        }
-        else if(tokens[pos].type == T_AGAR){
-            parseIfStatment();
-        }
-        else if (tokens[pos].type == T_RETURN){
-            parseReturnStatement();
-        }
-        else if(tokens[pos].type == T_FOR){
-            parseForLoop();
-        }
-        else if(tokens[pos].type == T_WHILE){
-            parseWhileLoop();
-        }
-        else if(tokens[pos].type == T_DO){
-            parseDoWhileLoop();
-        }
-        else if (tokens[pos].type == T_LBRACE) {
-            parseBlock();
-        }
-        else {
-            cout << "Syntax error : unexpected token" << tokens[pos].value<< "at line : "<< tokens[pos].line<<endl;
-            exit(1);
-        }
-    }
-
-    void expect(TokenType type) {
-        if (tokens[pos].type == type){
-            pos++;
-        }
-        else {
-            cout << "Syntax error: expected " << type << " but found " << tokens[pos].value << " at line " << tokens[pos].line << endl;
-            exit(1);
-        }
+        symTable.declareVariable(varName, typeString);
+        expect(T_SEMICOLON);
     }
 
 
+    void parseAssignment() {
+        string varName = expectAndReturnValue(T_ID);
+        symTable.getVariableType(varName);  
+        expect(T_ASSIGN);
+        string expr = parseExpression();
+        icg.addInstruction(varName + " = " + expr); 
+        expect(T_SEMICOLON);
+    }
+    void parseForAssignment() {
+        string varName = expectAndReturnValue(T_ID);
+        symTable.getVariableType(varName);  
+        expect(T_ASSIGN);
+        string expr = parseExpression();
+        icg.addInstruction(varName + " = " + expr); 
+    }
     void parseBlock() {
         expect(T_LBRACE);
         while (tokens[pos].type != T_RBRACE && tokens[pos].type != T_EOF) {
@@ -346,181 +325,207 @@ class Parser{
         expect(T_RBRACE);
     }
 
-    void parseDeclaration(){
-        TokenType type = tokens[pos].type;
-        expect(type);
-        expect(T_ID);
-        string varName = tokens[pos-1].value;
-        int line  = tokens[pos-1].line;
-
-        //adding the symbol in the symbol table for the current scope
-        symbolTable.addSymbol(varName, type, "global", line);
-        expect(T_SEMICOLON);
-    }
-
-    void parseAssignment(){
-        string varName = tokens[pos].value;
-        int line = tokens[pos].line;
-        expect(T_ID);
-        expect(T_ASSIGN);
-        
-        //lookup the symbol from the symbol table
-        Symbol* symbol = symbolTable.lookup(varName);
-        if(!symbol) {
-            cout<<"Error : Undefined variable " << varName << " at line " << line << endl;
-            exit(1);
-        }
-        string exprResult = parseExpression();
-        expect(T_SEMICOLON);
-
-        tacInstructions.push_back({"=", exprResult, "", varName});
-    }
-
-    void parseIfStatment(){
-        expect(T_AGAR); 
-        expect(T_LPAREN);
-        string condition = parseExpression();
+    void parseIfStatement() {
+        expect(T_AGAR);    
+        expect(T_LPAREN); 
+        string cond = parseExpression();
         expect(T_RPAREN);
 
-        string labelTrue = generateLabel();
-        string labelEnd = generateLabel();
+        string trueLabel = icg.newLabel();  // Generate new label for the true block
+        string falseLabel = icg.newLabel(); // Generate new label for the false block
+        string endLabel = icg.newLabel();   // Generate label for the end of the if-else
 
-        tacInstructions.push_back({"AGAR", condition, "", labelTrue});
-        tacInstructions.push_back({"goto", "", "", labelEnd});
+        icg.addInstruction("agar " + cond + " goto " + trueLabel); 
+        icg.addInstruction("goto " + falseLabel); 
 
-        tacInstructions.push_back({"label", "", "", labelTrue});
-        parseStatement();
-        tacInstructions.push_back({"label", "", "", labelEnd});
+        icg.addInstruction(trueLabel + ":");   // True block
+        if (tokens[pos].type == T_LBRACE) {
+            parseBlock();
+        } else {
+            parseStatement();
+        }
 
-        if(tokens[pos].type == T_WARNA){
+        if (tokens[pos].type == T_WARNA) { // Else block
+            icg.addInstruction("goto " + endLabel);
+            icg.addInstruction(falseLabel + ":");
             expect(T_WARNA);
+            if (tokens[pos].type == T_LBRACE) {
+                parseBlock();
+            } else {
+                parseStatement();
+            }
+            icg.addInstruction(endLabel + ":");
+        } else {
+            icg.addInstruction(falseLabel + ":");
+        }
+    }
+
+
+    void parseWhileStatement() {
+        expect(T_JABTAK);
+        expect(T_LPAREN);
+        string cond = parseExpression();
+        expect(T_RPAREN);
+
+        string startLabel = icg.newLabel();   // Label for the start of the loop
+        string trueLabel = icg.newLabel();    // Label for the true block
+        string endLabel = icg.newLabel();     // Label for exiting the loop
+
+        icg.addInstruction(startLabel + ":");
+        icg.addInstruction("agar " + cond + " goto " + trueLabel); 
+        icg.addInstruction("goto " + endLabel);
+
+        icg.addInstruction(trueLabel + ":");
+        if (tokens[pos].type == T_LBRACE) {
+            parseBlock();
+        } else {
             parseStatement();
         }
+        icg.addInstruction("goto " + startLabel);
+        icg.addInstruction(endLabel + ":");
     }
 
-    void parseReturnStatement(){
-        expect(T_RETURN);
-        parseExpression();
+
+    void parseForStatement() {
+        expect(T_FOR);               
+        expect(T_LPAREN);            
+
+        // Initialization
+        parseAssignment();           // Handles the initialization (e.g., `i = 0;`)
+
+        
+        string conditionLabel = icg.newLabel(); // Label for condition check
+        string bodyLabel = icg.newLabel();      // Label for the loop body
+        string incrementLabel = icg.newLabel(); // Label for increment step
+        string endLabel = icg.newLabel();       // Label for loop exit
+
+        // Generate the condition check label
+        icg.addInstruction(conditionLabel + ":");
+        
+        // Parse and evaluate the condition
+        string cond = parseExpression();        // Handles condition (e.g., `i < 10`)
+        expect(T_SEMICOLON);
+        icg.addInstruction("agar " + cond + " goto " + bodyLabel);
+        icg.addInstruction("goto " + endLabel); // Exit if condition is false
+
+        
+        // Increment/Update step
+        icg.addInstruction(incrementLabel + ":");
+        parseForAssignment();                       // Handles increment (e.g., `i = i + 1`)
+        expect(T_RPAREN);
+        icg.addInstruction("goto " + conditionLabel);  // Jump back to the condition check
+
+        // Loop body
+        icg.addInstruction(bodyLabel + ":");
+        if (tokens[pos].type == T_LBRACE) {
+            parseBlock();                       // Parse block if `{}` is used
+        } else {
+            parseStatement();                   // Parse single statement
+        }
+        icg.addInstruction("goto " + incrementLabel); // Jump back to the incremental label
+
+        // End of the loop
+        icg.addInstruction(endLabel + ":");
+    }
+
+
+    void parseReturnStatement() {
+        expect(T_WAPSI);
+        string expr = parseExpression();
+        icg.addInstruction("wapsi " + expr); 
         expect(T_SEMICOLON);
     }
-
-   string parseExpression() {
-        string temp1 = parseTerm();
+    string parseExpression() {
+        string term = parseTerm();
         while (tokens[pos].type == T_PLUS || tokens[pos].type == T_MINUS) {
-            string op = tokens[pos].value;
-            pos++;
-            string temp2 = parseTerm();
-            string result = generateTempVar();
-            tacInstructions.push_back({op, temp1, temp2, result});
-            temp1 = result;
+            TokenType op = tokens[pos++].type;
+            string nextTerm = parseTerm(); 
+            string temp = icg.newTemp();  
+            icg.addInstruction(temp + " = " + term + (op == T_PLUS ? " + " : " - ") + nextTerm);
+            term = temp;
         }
-        
         if (tokens[pos].type == T_GT || tokens[pos].type == T_LT || tokens[pos].type == T_AND || tokens[pos].type == T_OR ||
-               tokens[pos].type == T_EQ || tokens[pos].type == T_NEQ) {  
-            pos++;
-            parseExpression();
+             tokens[pos].type == T_EQ || tokens[pos].type == T_NEQ) {
+            TokenType operatorType = tokens[pos].type;
+            pos++; 
+            string nextExpr = parseExpression();
+            string operatorString;
+            switch (operatorType) {
+                case T_GT:
+                    operatorString = ">";
+                    break;
+                case T_LT:
+                    operatorString = "<";
+                    break;
+                case T_AND:
+                    operatorString = "&&";
+                    break;
+                case T_OR:
+                    operatorString = "||";
+                    break;
+                case T_EQ:
+                    operatorString = "==";
+                    break;
+                case T_NEQ:
+                    operatorString = "!=";
+                    break;
+                default:
+                    throw std::runtime_error("Unsupported operator in expression");
+            }
+
+            string temp = icg.newTemp();
+            icg.addInstruction(temp + " = " + term + " " + operatorString + " " + nextExpr);
+            term = temp;
         }
-        return temp1;
+
+        return term;
     }
 
-    string parseTerm(){
-        string temp1 = parseFactor();
-        while(tokens[pos].type == T_MUL || tokens[pos].type == T_DIV) {
-            string op = tokens[pos].value;
-            pos++;
-            string temp2 = parseFactor();
-            string result = generateTempVar();
-            tacInstructions.push_back({op, temp1, temp2, result});
-            temp1 = result;
+    string parseTerm() {
+        string factor = parseFactor();
+        while (tokens[pos].type == T_MUL || tokens[pos].type == T_DIV) {
+            TokenType op = tokens[pos++].type;
+            string nextFactor = parseFactor();
+            string temp = icg.newTemp(); 
+            icg.addInstruction(temp + " = " + factor + (op == T_MUL ? " * " : " / ") + nextFactor); 
+            factor = temp;
         }
-        return temp1;
+        return factor;
     }
 
-    string parseFactor(){
-        if(tokens[pos].type == T_NUM || tokens[pos].type == T_ID) {
-            string value = tokens[pos].value;
-            pos++;
-            return value;
-        }
-        else if (tokens[pos].type == T_LPAREN) {
-            expect (T_LPAREN);
-            parseExpression();
+    string parseFactor() {
+        if (tokens[pos].type == T_NUM) {
+            return tokens[pos++].value;
+        } else if (tokens[pos].type == T_ID) {
+            return tokens[pos++].value;
+        } else if (tokens[pos].type == T_LPAREN) {
+            expect(T_LPAREN);
+            string expr = parseExpression();
             expect(T_RPAREN);
-        }
-        else {
-            cout << "Syntax Error : unexpected token" << tokens[pos].value << "at line : "<< tokens[pos].line << endl;
+            return expr;
+        } else {
+            cout << "Syntax error: unexpected token '" << tokens[pos].value << "' at line " << tokens[pos].line << endl;
             exit(1);
         }
     }
 
-    void parseForLoop(){
-        expect(T_FOR);
-        expect(T_LPAREN);
-        parseAssignment();
-       // expect(T_SEMICOLON);
-        parseExpression();
-        expect(T_SEMICOLON);
-        parseAssignment();
-        expect(T_RPAREN);
-        if  (tokens[pos].type == T_LBRACE) {
-            parseBlock();
-        }
-        else {
-            parseStatement();
+    void expect(TokenType type) {
+        if (tokens[pos].type == type) {
+            pos++;
+        } else {
+            cout << "Syntax error: expected " << type << " but found " << tokens[pos].value << " at line " << tokens[pos].line << endl;
+            exit(1);
         }
     }
-
-    void parseWhileLoop(){
-        expect(T_WHILE);
-        expect(T_LPAREN);
-        parseExpression();
-        expect(T_RPAREN);
-        if(tokens[pos].type == T_LBRACE){
-            parseBlock();
-        }else {
-            parseStatement();
-        }
-        //expect(T_RBRACE);
-    
-    }
-
-    void parseDoWhileLoop(){
-        expect(T_DO);
-        parseStatement();
-        expect(T_WHILE);
-        expect(T_LPAREN);
-        parseExpression();
-        expect(T_RPAREN);
-        expect(T_SEMICOLON);
-    }
-
-    void printTAC(){
-        cout <<" \nThree Address Code (TAC): \n";
-        for(const auto& tac : tacInstructions) {
-            if (tac.op == "label") {
-                cout << tac.result << ":\n";
-            }
-            else if (tac.op == "if"){
-                
-                cout << "if" << tac.arg1 <<"goto" << tac.result << "\n"; 
-            }
-            else if(tac.op == "goto"){
-                cout << "goto" << tac.result << "\n";
-            }
-            else {
-                cout << tac.result << " = " << tac.arg1;
-                if (!tac.arg2.empty()) cout << " " << tac.op << " " <<tac.arg2;
-                cout<< "\n";
-            }
-        }
+    string expectAndReturnValue(TokenType type) {
+        string value = tokens[pos].value;
+        expect(type);
+        return value;
     }
 };
 
-
-
-int main (int argc, char *argv[]){
-    
-   if (argc < 2) {
+int main(int argc, char* argv[]) {
+    if (argc < 2) {
         cout << "Please provide a source file." << endl;
         return 1;
     }
@@ -537,8 +542,12 @@ int main (int argc, char *argv[]){
     Lexer lexer(input);
     vector<Token> tokens = lexer.tokenize();
 
-    Parser parser(tokens);
+    SymbolTable symTable;
+    IntermediateCodeGnerator icg;
+    Parser parser(tokens, symTable, icg);
+    
     parser.parseProgram();
+    icg.printInstructions();
 
     return 0;
 }
