@@ -1,32 +1,33 @@
-int a;
-float x;
-bool b;
-double d;
-string s;
-d = 2.7;
-a = 5;
-x = 2.5;
-b = false;
-
-int c;
-c = a + 10;
-//If else statement
-agar (c == 10) {
-    wapsi b;
+void greet() {
+    cout << "Hello-World";
 }
-warna { 
+
+int main() {
+    int x;
+    x = 10;
+    bool y;
+    y = false;
+    float f;
+    f = 2.7;
+    double sum;
+    sum = x + f * 3 / 2;
+    agar(sum < 10){
+        greet();
+    }
+    warna { 
+        wapsi 0;
+    }
+    /* While
+    Loop*/
+    jabtak (x != 10) {
+        x = x + 1;
+    }
+
+    int i;
+    for (i = 0; i < 10; i=i+1) {
+        agar (i == 9) {
+            cout << "done";
+        }   
+    }
     wapsi 0;
-}
-agar (c != 10) {
-    wapsi 1;
-}
-/* While
-Loop*/
-jabtak (a != 10) {
-    a = a + 1;
-}
-
-int i;
-for (i = 0; i < 10; i=i+1) {
-    a = i;
 }

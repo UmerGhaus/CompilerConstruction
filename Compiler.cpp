@@ -4,6 +4,9 @@
 #include <cctype>
 #include <map>
 #include <fstream>
+#include <sstream>
+#include <algorithm>
+
 
 using namespace std;
 
@@ -13,7 +16,8 @@ enum TokenType {
     T_ASSIGN, T_PLUS, T_MINUS, T_MUL, T_DIV, 
     T_LPAREN, T_RPAREN, T_LBRACE, T_RBRACE,  
     T_SEMICOLON,  T_LT, T_LE , T_GT , T_GE , T_EQ, T_NEQ, T_AND, T_OR,
-    T_EOF,
+    T_EOF, T_COUT, T_LSHIFT, T_STRING_LITERAL,
+    T_VOID,
 };
 
 struct Token {
@@ -62,6 +66,35 @@ public:
                 pos += 2; 
                 continue;
             }
+            // Handle string literals
+            if (current == '"') {
+                string strLiteral = "";
+                pos++; // Skip the opening quote
+                while (pos < src.size() && src[pos] != '"') {
+                    if (src[pos] == '\\' && pos + 1 < src.size()) { 
+                        // Handle escape sequences
+                        switch (src[pos + 1]) {
+                            case 'n': strLiteral += '\n'; break;
+                            case 't': strLiteral += '\t'; break;
+                            case '\\': strLiteral += '\\'; break;
+                            case '"': strLiteral += '\"'; break;
+                            default:
+                                cout << "Invalid escape sequence at line " << line << endl;
+                                exit(1);
+                        }
+                        pos += 2;
+                    } else {
+                        strLiteral += src[pos++];
+                    }
+                }
+                if (pos >= src.size() || src[pos] != '"') {
+                    cout << "Unterminated string literal at line " << line << endl;
+                    exit(1);
+                }
+                pos++; // Skip the closing quote
+                tokens.push_back(Token{T_STRING_LITERAL, strLiteral, line});
+                continue;
+            }
             if (isdigit(current)) {
                 tokens.push_back(Token{T_NUM, consumeNumber(), line});
                 continue;
@@ -79,6 +112,8 @@ public:
                 else if (word == "wapsi") tokens.push_back(Token{T_WAPSI, word, line});
                 else if (word == "jabtak") tokens.push_back(Token{T_JABTAK, word, line});
                 else if (word == "for") tokens.push_back(Token{T_FOR, word, line});
+                else if (word == "cout") tokens.push_back(Token{T_COUT, word, line});
+                else if (word == "void") tokens.push_back(Token{T_VOID, word, line});
                 else tokens.push_back(Token{T_ID, word, line});
                 continue;
             }
@@ -131,9 +166,12 @@ public:
                     if (src[pos + 1] == '=') {
                         tokens.push_back(Token{T_LE, "<=", line});
                         pos++; // Increment position to skip the '='
+                    } else if (src[pos + 1] == '<') {
+                        tokens.push_back(Token{T_LSHIFT, "<<", line});
+                        pos++; // Increment position to skip the '<'
                     } else {
                         tokens.push_back(Token{T_LT, "<", line});
-                    }
+                    } 
                     break;
                 default: 
                     cout << "Unexpected character: " << current << " at line " << line << endl; 
@@ -228,6 +266,134 @@ public:
 
 };
 
+class AssemblyCodeGenerator {
+public:
+    vector<string> assemblyInstructions;
+
+    void generateFromTAC(const vector<string>& tacInstructions) {
+        for (const string& tac : tacInstructions) {
+            processTACInstruction(tac);
+        }
+    }
+
+    void processTACInstruction(const string& tac) {
+        istringstream iss(tac);
+        vector<string> parts;
+        string part;
+
+        // Split the TAC instruction into parts
+        while (iss >> part) {
+            parts.push_back(part);
+        }
+
+        if (parts.size() == 3 && parts[1] == "=") {
+            // Assignment (e.g., d = 2.7)
+            if (isNumber(parts[2])) {
+                assemblyInstructions.push_back("MOV " + parts[0] + ", " + parts[2]);
+            } else {
+                assemblyInstructions.push_back("MOV " + parts[0] + ", [" + parts[2] + "]");
+            }
+        } else if (parts.size() == 5 && parts[3] == "+") {
+            // Addition (e.g., t0 = a + 10)
+            assemblyInstructions.push_back("MOV AX, [" + parts[2] + "]");
+            assemblyInstructions.push_back("ADD AX, " + parts[4]);
+            assemblyInstructions.push_back("MOV [" + parts[0] + "], AX");
+        } else if (parts.size() == 5 && parts[3] == "-") {
+            // Subtraction (e.g., t1 = x - y)
+            assemblyInstructions.push_back("MOV AX, " + parts[2]);
+            assemblyInstructions.push_back("SUB AX, " + parts[4]);
+            assemblyInstructions.push_back("MOV " + parts[0] + ", AX");
+        } else if (parts.size() == 5 && parts[3] == "*") {
+            // Multiplication (e.g., t0 = y * 3)
+            assemblyInstructions.push_back("MOV AX, " + parts[2]);  // Load the first operand
+            assemblyInstructions.push_back("IMUL AX, " + parts[4]); // Multiply by the second operand
+            assemblyInstructions.push_back("MOV " + parts[0] + ", AX");  // Store the result in the destination
+        } else if (parts.size() == 5 && parts[3] == "/") {
+            // Division (e.g., t1 = x / y)
+            assemblyInstructions.push_back("MOV AX, " + parts[2]);
+            assemblyInstructions.push_back("MOV DX, 0"); // Clear DX before division
+            assemblyInstructions.push_back("IDIV " + parts[4]);
+            assemblyInstructions.push_back("MOV " + parts[0] + ", AX");
+        } else if (parts.size() == 5 && parts[3] == "!=") {
+            // Not equal (e.g., t3 = a != 10)
+            assemblyInstructions.push_back("MOV AX, [" + parts[2] + "]");
+            assemblyInstructions.push_back("CMP AX, " + parts[4]);
+            assemblyInstructions.push_back("SETE [" + parts[0] + "]");
+        } else if (parts.size() == 5 && parts[3] == "<") {
+            // Less than (e.g., t5 = i < 10)
+            assemblyInstructions.push_back("MOV AX, [" + parts[2] + "]");
+            assemblyInstructions.push_back("CMP AX, " + parts[4]);
+            assemblyInstructions.push_back("SETL [" + parts[0] + "]");
+        } else if (parts.size() == 5 && parts[3] == "==") {
+            // Equal (e.g., t1 = c == 10)
+            assemblyInstructions.push_back("MOV AX, [" + parts[2] + "]");
+            assemblyInstructions.push_back("CMP AX, " + parts[4]);
+            assemblyInstructions.push_back("SETE [" + parts[0] + "]");
+        } else if (parts.size() == 4 && parts[0] == "agar") {
+            // Conditional jump (e.g., agar t1 goto L1)
+            assemblyInstructions.push_back("MOV AL, [" + parts[1] + "]");
+            assemblyInstructions.push_back("CMP AL, 1");
+            assemblyInstructions.push_back("JE " + parts[3]);
+        } else if (parts.size() == 2 && parts[0] == "goto") {
+            // Unconditional jump (e.g., goto L3)
+            assemblyInstructions.push_back("JMP " + parts[1]);
+        } else if (parts.size() == 2 && parts[1].back() == ':') {
+            // Label (e.g., L1:)
+            assemblyInstructions.push_back(parts[0] + ":");
+        } else if (parts.size() == 2 && parts[0] == "print") {
+            // Print statement (e.g., print "done")
+            assemblyInstructions.push_back("PUSH " + parts[1]);
+            assemblyInstructions.push_back("CALL PRINT");
+        } else if (parts.size() == 2 && parts[0] == "wapsi") {
+            // Return (e.g., wapsi b)
+            assemblyInstructions.push_back("MOV AX, [" + parts[1] + "]");
+            assemblyInstructions.push_back("RET");
+        } else if (parts.size() == 1 && parts[0][0] == 'L') {
+            // Return (e.g., wapsi b)
+            assemblyInstructions.push_back(parts[0]);
+        } 
+        else if (parts.size() == 1 && parts[0].find("_func") != string::npos) {
+            // Function label
+            assemblyInstructions.push_back(parts[0] + ":");
+            assemblyInstructions.push_back("PUSH BP");
+            assemblyInstructions.push_back("MOV BP, SP");
+        } else if (parts[0] == "RET") {
+            // Return instruction
+            assemblyInstructions.push_back("MOV SP, BP");
+            assemblyInstructions.push_back("POP BP");
+            assemblyInstructions.push_back("RET");
+        } else if (parts[0] == "CALL") {
+            // Function call
+            assemblyInstructions.push_back("CALL " + parts[1]);
+        } else {
+            cout << "Unsupported TAC: " << tac << endl;
+            exit(1);
+        }
+    }
+
+    bool isNumber(const string& str) {
+        return !str.empty() && all_of(str.begin(), str.end(), [](unsigned char c) { return isdigit(c) || c == '.'; });
+    }
+
+    void printAssemblyCode() {
+        for (const string& instr : assemblyInstructions) {
+            cout << instr << endl;
+        }
+    }
+
+    void saveToFile(const string& filename) {
+        ofstream outFile(filename);
+        if (!outFile.is_open()) {
+            cout << "Error opening file for writing: " << filename << endl;
+            return;
+        }
+        for (const string& instr : assemblyInstructions) {
+            outFile << instr << endl;
+        }
+        outFile.close();
+    }
+};
+
 class Parser {
 public:
     Parser(const vector<Token> &tokens, SymbolTable &symTable, IntermediateCodeGnerator &icg)
@@ -247,9 +413,22 @@ private:
     IntermediateCodeGnerator &icg;
 
     void parseStatement() {
-        if (tokens[pos].type == T_INT || tokens[pos].type == T_FLOAT || tokens[pos].type == T_DOUBLE || 
+        if (tokens[pos].type == T_VOID) {
+            parseFunctionDeclaration();
+        } else if (tokens[pos].type == T_ID && tokens[pos + 1].type == T_LPAREN) {
+            string functionName = expectAndReturnValue(T_ID);
+            parseFunctionCall(functionName);
+        }
+        else if (tokens[pos].type == T_INT || tokens[pos].type == T_FLOAT || tokens[pos].type == T_DOUBLE || 
             tokens[pos].type == T_BOOL || tokens[pos].type == T_CHAR || tokens[pos].type == T_STRING) {
-            parseDeclaration();
+            // Lookahead to check if it's a function or variable
+            if (tokens[pos + 1].type == T_ID && tokens[pos + 2].type == T_LPAREN) {
+                // Function declaration or definition
+                parseFunctionDeclaration();
+            } else {
+                // Variable declaration
+                parseDeclaration();
+            }
         } else if (tokens[pos].type == T_ID) {
             parseAssignment();
         } else if (tokens[pos].type == T_AGAR) {
@@ -262,6 +441,8 @@ private:
             parseReturnStatement();
         } else if (tokens[pos].type == T_LBRACE) {
             parseBlock();
+        } else if (tokens[pos].type == T_COUT) {
+            parseCoutStatement();
         } else {
             cout << "Syntax error: unexpected token " << tokens[pos].value 
                 << " at line " << tokens[pos].line << endl;
@@ -269,7 +450,68 @@ private:
         }
     }
 
-    
+    void parseFunctionDeclaration() {
+        TokenType returnType = tokens[pos].type; // Capture the return type
+        if (returnType != T_VOID && returnType != T_INT) {
+            throw std::runtime_error("Unsupported return type for function");
+        }
+        pos++; // Move past the return type
+
+        string functionName = expectAndReturnValue(T_ID); // Function name
+        expect(T_LPAREN); // Expect '('
+        expect(T_RPAREN); // Expect ')'
+
+        string functionLabel = functionName + "_func";
+        icg.addInstruction(functionLabel + ":"); // Add function label in TAC
+
+        expect(T_LBRACE); // Expect '{'
+        while (tokens[pos].type != T_RBRACE && tokens[pos].type != T_EOF) {
+            parseStatement(); // Parse statements inside the function
+        }
+        expect(T_RBRACE);
+
+        // Ensure int functions have a return statement
+        if (returnType == T_INT) {
+            icg.addInstruction("RET"); // Add a default return for safety
+        } else {
+            icg.addInstruction("RET");
+        }
+    }
+
+
+    void parseFunctionCall(const string& functionName) {
+        expect(T_LPAREN);       // Expect '('
+        expect(T_RPAREN);       // Expect ')'
+
+        icg.addInstruction("CALL " + functionName + "_func");
+        expect(T_SEMICOLON);    // Expect ';'
+    }
+
+
+
+    void parseCoutStatement() {
+        expect(T_COUT); // Expect the 'cout' token
+
+        while (tokens[pos].type == T_LSHIFT) {
+            expect(T_LSHIFT); // Expect the '<<' operator
+
+            if (tokens[pos].type == T_STRING_LITERAL) { // String literal
+                string strLiteral = tokens[pos].value;
+                pos++;
+                icg.addInstruction("print \"" + strLiteral + "\""); // Add print instruction for string
+            } else if (tokens[pos].type == T_ID) { // Variable name
+                string varName = tokens[pos].value;
+                symTable.getVariableType(varName); // Check if variable is declared
+                pos++;
+                icg.addInstruction("print " + varName); // Add print instruction for variable
+            } else {
+                throw std::runtime_error("Syntax error: Expected string literal or variable name after '<<'");
+            }
+        }
+
+        expect(T_SEMICOLON); // Expect the semicolon at the end of the statement
+    }
+
     void parseDeclaration() {
         TokenType varType = tokens[pos].type; 
         expect(varType);
@@ -430,11 +672,16 @@ private:
 
 
     void parseReturnStatement() {
-        expect(T_WAPSI);
-        string expr = parseExpression();
-        icg.addInstruction("wapsi " + expr); 
-        expect(T_SEMICOLON);
+        expect(T_WAPSI); // 'wapsi' is the return keyword in your syntax
+        if (tokens[pos].type != T_SEMICOLON) {
+            string returnValue = parseExpression(); // Parse return expression
+            icg.addInstruction("wapsi " + returnValue);
+        } else {
+            icg.addInstruction("wapsi");
+        }
+        expect(T_SEMICOLON); // Expect ';'
     }
+
     string parseExpression() {
         string term = parseTerm();
         while (tokens[pos].type == T_PLUS || tokens[pos].type == T_MINUS) {
@@ -513,10 +760,55 @@ private:
         if (tokens[pos].type == type) {
             pos++;
         } else {
-            cout << "Syntax error: expected " << type << " but found " << tokens[pos].value << " at line " << tokens[pos].line << endl;
+            cout << "Syntax error: expected " << tokenTypeToString(type) 
+                << " but found " << tokenTypeToString(tokens[pos].type)
+                << " at line " << tokens[pos].line << endl;
             exit(1);
         }
     }
+    string tokenTypeToString(TokenType type) {
+        switch (type) {
+            case T_FLOAT: return "float";
+            case T_DOUBLE: return "double";
+            case T_BOOL: return "bool";
+            case T_CHAR: return "char";
+            case T_STRING: return "string";
+            case T_JABTAK: return "jabtak";
+            case T_FOR: return "for";
+            case T_INT: return "int";
+            case T_ID: return "T_ID";
+            case T_NUM: return "number";
+            case T_AGAR: return "agar";
+            case T_WARNA: return "warna";
+            case T_WAPSI: return "wapsi";
+            case T_ASSIGN: return "=";
+            case T_PLUS: return "+";
+            case T_MINUS: return "-";
+            case T_MUL: return "*";
+            case T_DIV: return "/";
+            case T_LPAREN: return "(";
+            case T_RPAREN: return ")";
+            case T_LBRACE: return "{";
+            case T_RBRACE: return "}";
+            case T_SEMICOLON: return ";";
+            case T_LT: return "<";
+            case T_LE: return "<=";
+            case T_GT: return ">";
+            case T_GE: return ">=";
+            case T_EQ: return "==";
+            case T_NEQ: return "!=";
+            case T_AND: return "&&";
+            case T_OR: return "||";
+            case T_EOF: return "End of File";
+            case T_COUT: return "cout";
+            case T_LSHIFT: return "<<";
+            case T_STRING_LITERAL: return "T_STRING_LITERAL";
+            case T_VOID: return "T_VOID";
+            default: return "UNKNOWN_TOKEN";
+        }
+    }
+
+
     string expectAndReturnValue(TokenType type) {
         string value = tokens[pos].value;
         expect(type);
@@ -548,6 +840,15 @@ int main(int argc, char* argv[]) {
     
     parser.parseProgram();
     icg.printInstructions();
+
+    // Generate Assembly Code
+    AssemblyCodeGenerator codeGen;
+    codeGen.generateFromTAC(icg.instructions);
+    cout << endl << endl << "ASSEMBLY CODE" << endl;
+    codeGen.printAssemblyCode();
+
+    // Save assembly code to a file
+    codeGen.saveToFile("output.asm");
 
     return 0;
 }
